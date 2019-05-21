@@ -1,0 +1,87 @@
+CREATE TABLE WORKT
+(
+W_ID char(3) NOT NULL,
+W_NAME VARCHAR(100) NOT NULL UNIQUE,
+W_PRICE NUMERIC(10) NOT NULL,
+W_P varchar(30) not null,
+CONSTRAINT  w_pk PRIMARY KEY(W_ID),
+CONSTRAINT  w_fk FOREIGN KEY(W_P) REFERENCES PRINTER(P_ID)
+);
+
+CREATE TABLE PRINTER
+(
+P_ID CHAR(3) NOT NULL,
+P_NAME VARCHAR(50) NOT NULL ,
+P_SLOT NUMERIC(2) NOT NULL ,
+CONSTRAINT p_pk PRIMARY KEY (P_ID),
+constraint P_SLOT check (P_SLOT >0));
+
+CREATE TABLE CUSTUMERS(
+C_ID NUMERIC(3) NOT NULL,
+C_FAM VARCHAR(30) not null ,
+C_IO VARCHAR(30) not null ,
+C_SER NUMERIC(4) not null ,
+C_PASS NUMERIC(6) not null unique,
+C_PAY NUMERIC(16),
+C_NO NUMERIC(11) NOT NULL ,
+CONSTRAINT c_pk PRIMARY KEY (C_ID)
+);
+CREATE TABLE material
+(
+m_id NUMERIC(3) NOT NULL ,
+m_name VARCHAR2(50) NOT NULL,
+m_price NUMERIC(10) NOT NULL,
+m_par VARCHAR2(30) NOT NULL,
+m_clr VARCHAR2(30) NOT NULL,
+m_nal VARCHAR2(3) NOT NULL,
+CONSTRAINT m_pk PRIMARY KEY (m_id),
+CONSTRAINT m_nalcheck CHECK ( m_nal IN('yes', 'no'))
+);
+
+CREATE TABLE ORDERS
+(
+O_ID CHAR(3) NOT NULL,
+O_CUS NUMERIC(3) not null,
+O_W char(3) not null ,
+O_M NUMERIC(3) not null,
+O_K NUMERIC(3) NOT NULL,
+O_BD date,
+O_ED date,
+O_ADRS VARCHAR(50),
+CONSTRAINT or_pk PRIMARY KEY(O_ID),
+CONSTRAINT cus_fk FOREIGN KEY(O_CUS) REFERENCES CUSTUMERS(C_ID),
+CONSTRAINT ow_fk FOREIGN KEY (O_W) REFERENCES WORKT(W_ID),
+CONSTRAINT om_fk FOREIGN KEY (O_M) REFERENCES MATERIAL(m_id)
+);
+
+CREATE VIEW bigprinter AS /*Больние принтеры с 3 и более слотами для вида работ(типограф)*/
+    SELECT wr.w_name, pr.p_name, pr.p_slot
+           FROM workt wr, printer pr
+    WHERE  wr.w_id=pr.p_id AND pr.p_slot>2
+ORDER BY pr.p_slot;
+
+CREATE VIEW allprice AS /*итоговая стоимость заказа, не уверена (бухгалтер)*/
+    SELECT r.o_id, c.c_pass, c.c_fam, (m.m_price*r.o_k + w.w_price) as all_sum
+           FROM orders r, custumers c, material m, workt w
+    WHERE r.o_cus=c.c_id and r.o_w=w.w_id and r.o_m=m.m_id
+    ORDER BY all_sum;
+
+CREATE VIEW warehouse AS /* Товары на складе, использующиеся в заказах(менеджер)*/
+    SELECT r.o_k,  m.m_name, m.m_price, m.m_nal
+        FROM  orders r, material m
+    WHERE r.o_ed<current_date and r.o_m=m.m_id
+    ORDER BY r.o_k;
+
+CREATE VIEW ordernow AS /*не уверена в соединении таблиц, текущие заказы до даты выполнения менее 4 дней (типограф)*/
+    SELECT r.o_id, m.m_name, r.o_k, w.w_name, (SELECT p_name from printer)as printer,
+           (r.o_ed-current_date)<=4 as over
+        FROM orders r, workt w, material m
+    WHERE r.o_w=w.w_id and r.o_m=m.m_id
+    ORDER BY over;
+
+CREATE VIEW vipcus AS /* Вип клиенты с количеством заказов больше 5 (Владелец)(можно еще сделать сюда общую сумму заказов через allprice*/
+    SELECT COUNT(*) AS order_no, (SELECT c_fam, c_pass FROM custumers)
+          FROM ORDERS
+    GROUP BY o_id
+    HAVING COUNT(*)>5;
+    
